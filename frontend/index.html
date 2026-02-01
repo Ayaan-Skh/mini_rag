@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini RAG - Intelligent Document Q&A</title>
+    
+    <!-- Fonts: Distinctive typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=Fraunces:wght@300;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>        
+        :root {
+            /* Color System: High contrast editorial */
+            --ink-black: #0a0a0a;
+            --paper-white: #fafafa;
+            --accent-red: #e63946;
+            --accent-blue: #1d3557;
+            --gray-light: #e5e5e5;
+            --gray-mid: #6b6b6b;
+            --success-green: #2a9d8f;
+            --warning-orange: #f77f00;
+            
+            /* Typography Scale */
+            --font-display: 'Fraunces', serif;
+            --font-body: 'Crimson Pro', serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            
+            /* Spacing Scale (8px base) */
+            --space-xs: 0.5rem;
+            --space-sm: 1rem;
+            --space-md: 1.5rem;
+            --space-lg: 2.5rem;
+            --space-xl: 4rem;
+            
+            /* Animation Timing */
+            --timing-fast: 0.15s;
+            --timing-base: 0.3s;
+            --timing-slow: 0.6s;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-body);
+            background: var(--paper-white);
+            color: var(--ink-black);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* ===== LAYOUT: Asymmetric Grid ===== */
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-lg);
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: var(--space-lg);
+            min-height: 100vh;
+        }
+        
+        /* ===== HEADER: Bold Statement ===== */
+        
+        header {
+            grid-column: 1 / -1;
+            padding: var(--space-xl) 0;
+            border-bottom: 3px solid var(--ink-black);
+            position: relative;
+        }
+        
+        h1 {
+            font-family: var(--font-display);
+            font-size: clamp(3rem, 8vw, 7rem);
+            font-weight: 900;
+            line-height: 0.9;
+            letter-spacing: -0.03em;
+            margin-bottom: var(--space-sm);
+        }
+        
+        h1 span {
+            display: block;
+            font-weight: 300;
+            font-size: 0.35em;
+            letter-spacing: 0.05em;
+            margin-top: var(--space-xs);
+            color: var(--gray-mid);
+        }
+        
+        .subtitle {
+            font-size: 1.25rem;
+            color: var(--gray-mid);
+            max-width: 600px;
+            margin-top: var(--space-md);
+        }
+        
+        /* Stats badge - floating element */
+        .stats-badge {
+            position: absolute;
+            top: var(--space-md);
+            right: 0;
+            background: var(--ink-black);
+            color: var(--paper-white);
+            padding: var(--space-sm) var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            transform: rotate(2deg);
+            transition: transform var(--timing-base);
+        }
+        
+        .stats-badge:hover {
+            transform: rotate(-2deg) scale(1.05);
+        }
+        
+        /* ===== SIDEBAR: Upload Zone ===== */
+        
+        .sidebar {
+            grid-column: 1 / 2;
+            position: sticky;
+            top: var(--space-lg);
+            height: fit-content;
+        }
+        
+        .upload-section {
+            background: var(--ink-black);
+            color: var(--paper-white);
+            padding: var(--space-lg);
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .upload-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255,255,255,0.03) 10px,
+                rgba(255,255,255,0.03) 20px
+            );
+            animation: slide 20s linear infinite;
+        }
+        
+        @keyframes slide {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50%, 50%); }
+        }
+        
+        .upload-section > * {
+            position: relative;
+            z-index: 1;
+        }
+        
+        h2 {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: var(--space-md);
+            line-height: 1.1;
+        }
+        
+        .upload-zone {
+            border: 2px dashed var(--gray-light);
+            padding: var(--space-lg);
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--timing-base);
+            background: rgba(255,255,255,0.05);
+            margin-bottom: var(--space-md);
+        }
+        
+        .upload-zone:hover {
+            border-color: var(--accent-red);
+            transform: scale(1.02);
+        }
+        
+        .upload-zone.dragover {
+            border-color: var(--accent-red);
+            background: rgba(230, 57, 70, 0.1);
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: var(--space-sm);
+            display: inline-block;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .btn {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            font-weight: 600;
+            padding: var(--space-sm) var(--space-lg);
+            border: 2px solid currentColor;
+            background: transparent;
+            color: var(--paper-white);
+            cursor: pointer;
+            transition: all var(--timing-base);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--paper-white);
+            transition: left var(--timing-base);
+            z-index: -1;
+        }
+        
+        .btn:hover::before {
+            left: 0;
+        }
+        
+        .btn:hover {
+            color: var(--ink-black);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .supported-formats {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            margin-top: var(--space-sm);
+        }
+        
+        /* ===== MAIN: Query Interface ===== */
+        
+        main {
+            grid-column: 2 / 3;
+        }
+        
+        .query-section {
+            margin-bottom: var(--space-xl);
+        }
+        
+        .query-section h2 {
+            color: var(--ink-black);
+            margin-bottom: var(--space-md);
+        }
+        
+        .query-input-wrapper {
+            position: relative;
+            margin-bottom: var(--space-md);
+        }
+        
+        .query-input {
+            width: 100%;
+            font-family: var(--font-body);
+            font-size: 1.125rem;
+            padding: var(--space-md);
+            border: 3px solid var(--ink-black);
+            background: var(--paper-white);
+            color: var(--ink-black);
+            resize: vertical;
+            min-height: 120px;
+            transition: all var(--timing-base);
+        }
+        
+        .query-input:focus {
+            outline: none;
+            border-color: var(--accent-red);
+            box-shadow: 8px 8px 0 var(--accent-red);
+            transform: translate(-4px, -4px);
+        }
+        
+        .query-controls {
+            display: flex;
+            gap: var(--space-md);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn-primary {
+            background: var(--accent-red);
+            color: var(--paper-white);
+            border-color: var(--accent-red);
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .btn-primary::before {
+            background: var(--ink-black);
+        }
+        
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            font-size: 0.875rem;
+        }
+        
+        /* Custom checkbox */
+        input[type="checkbox"] {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--ink-black);
+            appearance: none;
+            cursor: pointer;
+            position: relative;
+            transition: all var(--timing-fast);
+        }
+        
+        input[type="checkbox"]:checked {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+        }
+        
+        input[type="checkbox"]:checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--paper-white);
+            font-weight: bold;
+        }
+        
+        /* ===== RESULTS: Typography-First Display ===== */
+        
+        .results-section {
+            margin-top: var(--space-xl);
+            padding-top: var(--space-xl);
+            border-top: 3px solid var(--ink-black);
+        }
+        
+        .results-section h2 {
+            margin-bottom: var(--space-lg);
+        }
+        
+        .answer-box {
+            background: var(--paper-white);
+            border-left: 6px solid var(--accent-blue);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            font-size: 1.125rem;
+            line-height: 1.8;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            animation: slideIn var(--timing-slow) ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .answer-box p {
+            margin-bottom: var(--space-sm);
+        }
+        
+        /* Citation styling */
+        .citation {
+            display: inline-block;
+            background: var(--accent-red);
+            color: var(--paper-white);
+            padding: 0.1em 0.4em;
+            font-family: var(--font-mono);
+            font-size: 0.75em;
+            font-weight: 500;
+            margin: 0 0.2em;
+            cursor: pointer;
+            transition: transform var(--timing-fast);
+        }
+        
+        .citation:hover {
+            transform: scale(1.2) rotate(-3deg);
+        }
+        
+        /* Sources */
+        .sources-container {
+            margin-top: var(--space-lg);
+        }
+        
+        .source-card {
+            background: var(--gray-light);
+            padding: var(--space-md);
+            margin-bottom: var(--space-md);
+            border-left: 4px solid var(--accent-blue);
+            animation: slideIn var(--timing-slow) ease-out;
+            animation-fill-mode: both;
+        }
+        
+        .source-card:nth-child(1) { animation-delay: 0.1s; }
+        .source-card:nth-child(2) { animation-delay: 0.2s; }
+        .source-card:nth-child(3) { animation-delay: 0.3s; }
+        
+        .source-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .source-citation {
+            font-family: var(--font-mono);
+            font-weight: bold;
+            color: var(--accent-red);
+            font-size: 1.25rem;
+        }
+        
+        .source-score {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--gray-mid);
+        }
+        
+        .source-meta {
+            font-size: 0.875rem;
+            color: var(--gray-mid);
+            margin-bottom: var(--space-sm);
+        }
+        
+        .source-text {
+            font-size: 0.938rem;
+            line-height: 1.6;
+            color: var(--ink-black);
+        }
+        
+        /* Metadata display */
+        .metadata {
+            display: flex;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+            margin-top: var(--space-lg);
+            padding: var(--space-md);
+            background: var(--gray-light);
+            font-family: var(--font-mono);
+            font-size: 0.813rem;
+        }
+        
+        .metadata-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .metadata-label {
+            color: var(--gray-mid);
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+        
+        .metadata-value {
+            color: var(--ink-black);
+            font-weight: 600;
+        }
+        
+        /* ===== INFO PANEL ===== */
+        
+        .info-panel {
+            grid-column: 3 / 4;
+            position: sticky;
+            top: var(--space-lg);
+            height: fit-content;
+        }
+        
+        .info-card {
+            background: var(--accent-blue);
+            color: var(--paper-white);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-md);
+        }
+        
+        .info-card h3 {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .info-card p {
+            font-size: 0.938rem;
+            line-height: 1.6;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .info-card ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .info-card li {
+            padding-left: 1.5em;
+            position: relative;
+            margin-bottom: var(--space-xs);
+        }
+        
+        .info-card li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--accent-red);
+        }
+        
+        /* ===== LOADING STATES ===== */
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--gray-light);
+            border-top-color: var(--accent-red);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: var(--space-sm);
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .status-message {
+            padding: var(--space-md);
+            margin-top: var(--space-md);
+            border-left: 4px solid;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            animation: slideIn var(--timing-base);
+        }
+        
+        .status-message.success {
+            background: rgba(42, 157, 143, 0.1);
+            border-color: var(--success-green);
+            color: var(--success-green);
+        }
+        
+        .status-message.error {
+            background: rgba(230, 57, 70, 0.1);
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+        
+        .status-message.info {
+            background: rgba(29, 53, 87, 0.1);
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        
+        /* ===== RESPONSIVE ===== */
+        
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr 2fr;
+            }
+            
+            header {
+                grid-column: 1 / -1;
+            }
+            
+            .info-panel {
+                grid-column: 1 / -1;
+                position: static;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: var(--space-md);
+            }
+            
+            h1 {
+                font-size: 3rem;
+            }
+            
+            .sidebar, main, .info-panel {
+                grid-column: 1;
+                position: static;
+            }
+            
+            .query-controls {
+                flex-direction: column;
+            }
+            
+            .btn-primary {
+                width: 100%;
+            }
+        }
+        
+        /* Hide elements initially for animation */
+        .results-section {
+            opacity: 0;
+            transition: opacity var(--timing-slow);
+        }
+        
+        .results-section.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>
+                MINI RAG
+                <span>INTELLIGENT DOCUMENT QUESTION & ANSWER SYSTEM</span>
+            </h1>
+            <p class="subtitle">
+                Upload your documents, ask questions, get answers with precise citations. 
+                Powered by LLM and vector search.
+            </p>
+            <div class="stats-badge" id="statsBadge">
+            </div>
+        </header>
+        
+        <!-- Sidebar: Upload -->
+        <aside class="sidebar">
+            <section class="upload-section">
+                <h2>Upload Documents</h2>
+                
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📄</div>
+                    <p><strong>Drop files here</strong></p>
+                    <p>or click to browse</p>
+                </div>
+                
+                <input type="file" id="fileInput" class="file-input" 
+                       accept=".pdf,.docx,.txt,.md" multiple>
+                
+                <button class="btn" onclick="document.getElementById('fileInput').click()">
+                    Choose Files
+                </button>
+                
+                <div class="supported-formats">
+                    Supported: PDF, DOCX, TXT, MD
+                </div>
+                
+                <div id="uploadStatus"></div>
+            </section>
+        </aside>
+        
+        <!-- Main: Query -->
+        <main>
+            <section class="query-section">
+                <h2>Ask a Question</h2>
+                
+                <div class="query-input-wrapper">
+                    <textarea 
+                        id="queryInput" 
+                        class="query-input" 
+                        placeholder='What are the main findings in the research papers?'
+                    ></textarea>
+                </div>
+                
+                <div class="query-controls">
+                    <button id="queryBtn" class="btn btn-primary" onclick="submitQuery()">
+                        Generate Answer
+                    </button>
+                    
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="rerankCheckbox" checked>
+                        <label for="rerankCheckbox">Use MMR Reranking</label>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Results -->
+            <section id="resultsSection" class="results-section" style="display: none;">
+                <h2>Answer</h2>
+                
+                <div id="answerBox" class="answer-box"></div>
+                
+                <div id="sourcesContainer" class="sources-container"></div>
+                
+                <div id="metadataContainer" class="metadata"></div>
+            </section>
+        </main>
+        
+        <!-- Info Panel -->
+        <aside class="info-panel">
+            <div class="info-card">
+                <h3>How It Works</h3>
+                <p>This RAG system combines retrieval and generation:</p>
+                <ul>
+                    <li><strong>Upload:</strong> Documents are chunked and embedded</li>
+                    <li><strong>Store:</strong> Vectors saved in Qdrant database</li>
+                    <li><strong>Retrieve:</strong> Semantic search finds relevant chunks</li>
+                    <li><strong>Rerank:</strong> MMR ensures diverse context</li>
+                    <li><strong>Generate:</strong> Claude creates cited answers</li>
+                </ul>
+            </div>
+            
+            <div class="info-card">
+                <h3>Features</h3>
+                <ul>
+                    <li>Inline citations [1], [2]</li>
+                    <li>Source attribution</li>
+                    <li>Similarity scores</li>
+                    <li>Token usage tracking</li>
+                    <li>MMR diversity reranking</li>
+                </ul>
+            </div>
+        </aside>
+    </div>
+    
+    <script>
+        // ==================== Configuration ====================
+        const API_BASE = 'http://localhost:8000';
+        
+        // ==================== State ====================
+        let currentSources = [];
+        
+        // ==================== Upload Functionality ====================
+        
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadStatus = document.getElementById('uploadStatus');
+        
+        // Drag and drop handlers
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        async function handleFiles(files) {
+            if (!files || files.length === 0) return;
+            
+            uploadStatus.innerHTML = '';
+            
+            for (const file of files) {
+                await uploadFile(file);
+            }
+            
+            // Refresh stats
+            updateStats();
+        }
+        
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            showStatus(`Uploading ${file.name}...`, 'info', uploadStatus);
+            
+            try {
+                const response = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus(
+                        `✓ ${file.name}: ${data.chunks_created} chunks created`,
+                        'success',
+                        uploadStatus
+                    );
+                } else {
+                    showStatus(
+                        `✗ ${file.name}: ${data.detail}`,
+                        'error',
+                        uploadStatus
+                    );
+                }
+            } catch (error) {
+                showStatus(
+                    `✗ ${file.name}: ${error.message}`,
+                    'error',
+                    uploadStatus
+                );
+            }
+        }
+        
+        // ==================== Query Functionality ====================
+        
+        async function submitQuery() {
+            const query = document.getElementById('queryInput').value.trim();
+            const useReranking = document.getElementById('rerankCheckbox').checked;
+            const queryBtn = document.getElementById('queryBtn');
+            
+            if (!query) {
+                alert('Please enter a question');
+                return;
+            }
+            
+            // Show loading state
+            queryBtn.disabled = true;
+            queryBtn.innerHTML = 'Generating<span class="loading"></span>';
+            
+            // Hide previous results
+            document.getElementById('resultsSection').style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        use_reranking: useReranking
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayResults(data);
+                } else {
+                    alert(`Error: ${data.detail}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                queryBtn.disabled = false;
+                queryBtn.textContent = 'Generate Answer';
+            }
+        }
+        
+        // ==================== Display Results ====================
+        
+        function displayResults(data) {
+            const resultsSection = document.getElementById('resultsSection');
+            const answerBox = document.getElementById('answerBox');
+            const sourcesContainer = document.getElementById('sourcesContainer');
+            const metadataContainer = document.getElementById('metadataContainer');
+            
+            // Store sources for citation linking
+            currentSources = data.sources;
+            
+            // Format answer with clickable citations
+            const formattedAnswer = formatAnswerWithCitations(data.answer);
+            answerBox.innerHTML = formattedAnswer;
+            
+            // Display sources
+            sourcesContainer.innerHTML = '<h3>Sources</h3>' + 
+                data.sources.map(formatSource).join('');
+            
+            // Display metadata
+            metadataContainer.innerHTML = `
+                <div class="metadata-item">
+                    <div class="metadata-label">Retrieval Time</div>
+                    <div class="metadata-value">${data.retrieval_time.toFixed(3)}s</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Generation Time</div>
+                    <div class="metadata-value">${data.generation_time.toFixed(3)}s</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Input Tokens</div>
+                    <div class="metadata-value">${data.usage.input_tokens || 0}</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Output Tokens</div>
+                    <div class="metadata-value">${data.usage.output_tokens || 0}</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Total Tokens</div>
+                    <div class="metadata-value">${(data.usage.input_tokens || 0) + (data.usage.output_tokens || 0)}</div>
+                </div>
+            `;
+            
+            // Show results with animation
+            resultsSection.style.display = 'block';
+            setTimeout(() => {
+                resultsSection.classList.add('visible');
+            }, 10);
+            
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function formatAnswerWithCitations(answer) {
+            // Replace [1], [2], etc. with styled spans
+            return answer.replace(/\[(\d+(?:,\d+)*)\]/g, (match, numbers) => {
+                return `<span class="citation" onclick="scrollToSource('${match}')">${match}</span>`;
+            });
+        }
+        
+        function formatSource(source, index) {
+            return `
+                <div class="source-card" id="source-${source.citation}">
+                    <div class="source-header">
+                        <span class="source-citation">${source.citation}</span>
+                        <span class="source-score">Score: ${source.score.toFixed(3)}</span>
+                    </div>
+                    <div class="source-meta">
+                        <strong>${source.source}</strong> • Position: ${source.position}
+                    </div>
+                    <div class="source-text">${source.text}</div>
+                </div>
+            `;
+        }
+        
+        function scrollToSource(citation) {
+            const sourceElement = document.getElementById(`source-${citation}`);
+            if (sourceElement) {
+                sourceElement.style.background = '#fff3cd';
+                sourceElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                setTimeout(() => {
+                    sourceElement.style.background = '';
+                    sourceElement.style.transition = 'background 0.6s';
+                }, 1500);
+            }
+        }
+        
+        // ==================== Stats ====================
+        
+        async function updateStats() {
+            try {
+                const response = await fetch(`${API_BASE}/stats`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('docCount').textContent = data.vectors_count;
+                }
+            } catch (error) {
+                console.error('Failed to fetch stats:', error);
+            }
+        }
+        
+        // ==================== Utility Functions ====================
+        
+        function showStatus(message, type, container) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.textContent = message;
+            container.appendChild(statusDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                statusDiv.remove();
+            }, 5000);
+        }
+        
+        // ==================== Initialize ====================
+        
+        // Load initial stats
+        updateStats();
+        
+        // Allow Enter+Shift to submit query
+        document.getElementById('queryInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.shiftKey) {
+                e.preventDefault();
+                submitQuery();
+            }
+        });
+    </script>
+</body>
+</html>
