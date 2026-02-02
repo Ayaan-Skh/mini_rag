@@ -492,13 +492,17 @@ async def global_exception_handler(request, exc):
 
 if __name__ == "__main__":
     import uvicorn
+    import os
     
-    logger.info("Starting Mini RAG API server...")
+    # Get port from environment (Render sets this)
+    port = int(os.getenv("PORT", 8000))
+    
+    logger.info(f"Starting server on 0.0.0.0:{port}")
     
     uvicorn.run(
         "main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=True,  # Enable auto-reload during development
+        host="0.0.0.0",   # MUST be 0.0.0.0 for Render
+        port=port,
+        reload=False,     # No reload in production
         log_level="info"
     )
