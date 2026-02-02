@@ -103,42 +103,34 @@ class StatsResponse(BaseModel):
 
 
 # ==================== Startup Event ====================
-
 @app.on_event("startup")
 async def startup_event():
-    """
-    Initialize services on application startup.
-    
-    This ensures:
-    1. Vector database connection is established
-    2. Collection is created if it doesn't exist
-    3. ML models are loaded
-    4. All services are ready before accepting requests
-    """
+    """Initialize services on application startup."""
     logger.info("Starting Mini RAG API...")
     
-    try:
-        # Initialize vector database
-        logger.info("Initializing vector database...")
-        vector_db = get_vector_database()
-        vector_db.create_collection(recreate=False)
-        
-        # Initialize embedding model (downloads if first time)
-        logger.info("Loading embedding model...")
-        get_retriever()
-        
-        # Initialize LLM service
-        logger.info("Initializing LLM service...")
-        get_llm_service()
-        
-        logger.info("✓ All services initialized successfully")
-        logger.info(f"✓ Using collection: {settings.collection_name}")
-        logger.info(f"✓ Server running on {settings.host}:{settings.port}")
-        
-    except Exception as e:
-        logger.error(f"Failed to initialize services: {e}")
-        raise
-
+    # Just check environment variables, don't initialize services yet
+    import os
+    
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    qdrant_url = os.getenv("QDRANT_URL", "")
+    qdrant_key = os.getenv("QDRANT_API_KEY", "")
+    
+    if not groq_key:
+        logger.warning("⚠️ GROQ_API_KEY not set")
+    else:
+        logger.info("✓ GROQ_API_KEY found")
+    
+    if not qdrant_url:
+        logger.warning("⚠️ QDRANT_URL not set")
+    else:
+        logger.info("✓ QDRANT_URL found")
+    
+    if not qdrant_key:
+        logger.warning("⚠️ QDRANT_API_KEY not set")
+    else:
+        logger.info("✓ QDRANT_API_KEY found")
+    
+    logger.info("✓ Startup complete - services will initialize on first use")
 
 # ==================== API Endpoints ====================
 

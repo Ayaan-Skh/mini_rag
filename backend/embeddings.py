@@ -11,26 +11,22 @@ class EmbeddingGenerator:
     """
     Generates embeddings of the docs and user input
     """
-    def __init__(self,model_name:str=None):
-        """
-        Initialize embeddings generator
-        """
-        self.model_name=model_name or settings.embedding_model
-        try:
-            self.model=SentenceTransformer(self.model_name)
-            logger.info(f"Model: {self.model_name}  loaded successfully...")
-        except Exception as e:
-            logger.error(f"Failed to load embeddings model:{e}")    
-            raise
-        
-    def embed_text(self,text:str)->List[float]:
-        try:
-            embeddings=self.model.encode(text,convert_to_numpy=True)
-            logging.info("Embeddings generated")
-            return embeddings.tolist()    
-        except Exception as e:
-            logging.error(f"Error generating embedding:{e}")
-            raise
+    def __init__(self, model_name: str = None):
+        """Initialize the embedding generator."""
+        self.model_name = model_name or settings.embedding_model
+        self.model = None  # Don't load yet
+        logger.info(f"Embedding generator created (model will load on first use)")
+
+    def _ensure_model_loaded(self):
+        """Load model if not already loaded."""
+        if self.model is None:
+            logger.info(f"Loading embedding model: {self.model_name}")
+            self.model = SentenceTransformer(self.model_name)
+            logger.info("Model loaded successfully")
+
+    def embed_text(self, text: str) -> List[float]:
+        """Generate embedding for a single text string."""
+        self._ensure_model_loaded()
         
     def embed_batch(self,texts:List[str],batch_size:int)->List[float]:
         """

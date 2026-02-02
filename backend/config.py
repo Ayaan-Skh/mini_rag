@@ -33,7 +33,6 @@ class Settings(BaseSettings):
         description="API key for Groq API"
     )
     
-    # Qdrant Configuration
     qdrant_url: str = Field(
         default="",
         description="URL for Qdrant cloud instance"
@@ -42,7 +41,6 @@ class Settings(BaseSettings):
         default="",
         description="API key for Qdrant cloud"
     )
-    
     # Collection Configuration
     collection_name: str = Field(
         default="mini_rag_documents",
