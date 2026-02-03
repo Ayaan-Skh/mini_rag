@@ -781,13 +781,20 @@
             const formData = new FormData();
             formData.append('file', file);
             
-            showStatus(`Uploading ${file.name}...`, 'info', uploadStatus);
+            showStatus(`Uploading ${file.name}... (may take 30-60s on first request)`, 'info', uploadStatus);
             
             try {
+                // Add timeout and better error handling
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+                
                 const response = await fetch(`${API_BASE}/upload`, {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    signal: controller.signal
                 });
+        
+                clearTimeout(timeout);
                 
                 const data = await response.json();
                 
