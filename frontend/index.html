@@ -995,6 +995,21 @@
                 submitQuery();
             }
         });
+
+        // Keep backend awake (ping every 10 minutes)
+        setInterval(async () => {
+            try {
+                await fetch(`${API_BASE}/health`);
+                console.log('Backend keepalive ping sent');
+            } catch (e) {
+                console.log('Backend keepalive failed:', e);
+            }
+        }, 600000); // 10 minutes
+        
+        // Initial ping on page load
+        fetch(`${API_BASE}/health`)
+            .then(() => console.log('Backend is awake'))
+            .catch(() => console.log('Backend is sleeping, waking up...'));
     </script>
 </body>
 </html>
